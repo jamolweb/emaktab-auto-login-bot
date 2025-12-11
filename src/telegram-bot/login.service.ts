@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import FormData from 'form-data';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Student } from './excel-parser.service';
 
 @Injectable()
@@ -69,21 +71,62 @@ export class LoginService {
 
       console.log(`[LOGIN] Response status for ${username}: ${response.status}`);
       
-      // Check if response is status 200 (success indicator)
+      // Get response body as string
+      const responseBody = response.data || '';
+      const bodyString = typeof responseBody === 'string' 
+        ? responseBody 
+        : JSON.stringify(responseBody);
+      
+      // Save response body to file
+      const responsesDir = path.join(process.cwd(), 'responses');
+      if (!fs.existsSync(responsesDir)) {
+        fs.mkdirSync(responsesDir, { recursive: true });
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `${username}_${timestamp}.html`;
+      const filepath = path.join(responsesDir, filename);
+      fs.writeFileSync(filepath, bodyString, 'utf-8');
+      console.log(`[LOGIN] Response body saved to: ${filepath}`);
+      
+      console.log(`[LOGIN] Response body length: ${bodyString.length} characters`);
+      
+      // Check if response body contains failure indicators
+      const containsKirish = bodyString.includes('Kirish');
+      const containsParol = bodyString.includes('Parol');
+      const hasFailureIndicators = containsKirish || containsParol;
+      
+      // Find positions where these strings appear
+      if (containsKirish) {
+        const kirishIndex = bodyString.indexOf('Kirish');
+        const context = bodyString.substring(Math.max(0, kirishIndex - 50), Math.min(bodyString.length, kirishIndex + 100));
+        console.log(`[LOGIN] Found "Kirish" at position ${kirishIndex}`);
+        console.log(`[LOGIN] Context around "Kirish": ...${context}...`);
+      }
+      
+      if (containsParol) {
+        const parolIndex = bodyString.indexOf('Parol');
+        const context = bodyString.substring(Math.max(0, parolIndex - 50), Math.min(bodyString.length, parolIndex + 100));
+        console.log(`[LOGIN] Found "Parol" at position ${parolIndex}`);
+        console.log(`[LOGIN] Context around "Parol": ...${context}...`);
+      }
+      
+      console.log(`[LOGIN] Response body check for ${username}:`);
+      console.log(`[LOGIN]   - Contains "Kirish": ${containsKirish}`);
+      console.log(`[LOGIN]   - Contains "Parol": ${containsParol}`);
+      
+      // Check if response is status 200 and doesn't contain failure indicators
       if (response.status === 200) {
-        console.log(`[LOGIN] ✅ SUCCESS for ${username}: Status code is 200`);
-        return true;
+        if (hasFailureIndicators) {
+          console.log(`[LOGIN] ❌ Failed for ${username}: Status is 200 but response body contains failure indicators (Kirish or Parol)`);
+          return false;
+        } else {
+          console.log(`[LOGIN] ✅ SUCCESS for ${username}: Status code is 200 and no failure indicators found`);
+          return true;
+        }
       } else {
         console.log(`[LOGIN] ❌ Failed for ${username}: Status code is ${response.status}, expected 200`);
-        
-        // Log response body snippet for non-200 status
-        const responseBody = response.data || '';
-        const bodyString = typeof responseBody === 'string' 
-          ? responseBody 
-          : JSON.stringify(responseBody);
         const bodySnippet = bodyString.substring(0, 500);
         console.log(`[LOGIN] Response body snippet (first 500 chars) for ${username}:`, bodySnippet);
-        
         return false;
       }
     } catch (error) {
@@ -99,20 +142,47 @@ export class LoginService {
           const status = error.response.status;
           console.log(`[LOGIN] Error response status for ${username}: ${status}`);
           
-          // Check if status is 200 (success)
+          // Get response body as string
+          const responseBody = error.response.data || '';
+          const bodyString = typeof responseBody === 'string' 
+            ? responseBody 
+            : JSON.stringify(responseBody);
+          
+          // Save response body to file
+          const responsesDir = path.join(process.cwd(), 'responses');
+          if (!fs.existsSync(responsesDir)) {
+            fs.mkdirSync(responsesDir, { recursive: true });
+          }
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `${username}_${timestamp}_error.html`;
+          const filepath = path.join(responsesDir, filename);
+          fs.writeFileSync(filepath, bodyString, 'utf-8');
+          console.log(`[LOGIN] Error response body saved to: ${filepath}`);
+          
+          // Check if response body contains failure indicators
+          const containsKirish = bodyString.includes('Kirish');
+          const containsParol = bodyString.includes('Parol');
+          const hasFailureIndicators = containsKirish || containsParol;
+          
+          console.log(`[LOGIN] Error response body check for ${username}:`);
+          console.log(`[LOGIN]   - Contains "Kirish": ${containsKirish}`);
+          console.log(`[LOGIN]   - Contains "Parol": ${containsParol}`);
+          
+          // Check if status is 200 and doesn't contain failure indicators
           if (status === 200) {
-            console.log(`[LOGIN] ✅ SUCCESS for ${username}: Status code is 200 (from error response)`);
-            return true;
+            if (hasFailureIndicators) {
+              console.log(`[LOGIN] ❌ Failed for ${username}: Status is 200 but response body contains failure indicators (Kirish or Parol)`);
+              const bodySnippet = bodyString.substring(0, 500);
+              console.log(`[LOGIN] Error response body snippet (first 500 chars) for ${username}:`, bodySnippet);
+              return false;
+            } else {
+              console.log(`[LOGIN] ✅ SUCCESS for ${username}: Status code is 200 and no failure indicators found (from error response)`);
+              return true;
+            }
           } else {
             console.log(`[LOGIN] ❌ Failed for ${username}: Status code is ${status}, expected 200`);
-            
-            const responseBody = error.response.data || '';
-            const bodyString = typeof responseBody === 'string' 
-              ? responseBody 
-              : JSON.stringify(responseBody);
             const bodySnippet = bodyString.substring(0, 500);
             console.log(`[LOGIN] Error response body snippet (first 500 chars) for ${username}:`, bodySnippet);
-            
             return false;
           }
         } else {
