@@ -55,7 +55,7 @@ export class LoginService {
       formData.append('login', username);
       formData.append('password', password);
       formData.append('Captcha.Input', '');
-      formData.append('Captcha.Id', '153dbd65-003c-4c24-ac3c-016996d1e7aa');
+      formData.append('Captcha.Id', '');
 
       console.log(`[LOGIN] Sending POST request to ${this.loginUrl} for ${username}`);
 
